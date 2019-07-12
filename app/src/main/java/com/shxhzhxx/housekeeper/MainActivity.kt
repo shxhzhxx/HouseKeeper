@@ -13,9 +13,9 @@ const val HOST = "39.106.101.63"
 const val PORT = 3889
 val md: MessageDigest by lazy { MessageDigest.getInstance("MD5") }
 @Synchronized
-fun md5(raw: String) = BigInteger(1, md.digest(raw.toByteArray())).toString(16).padStart(32, '0')
+fun String.hash() = BigInteger(1, md.digest(toByteArray())).toString(16).padStart(32, '0')
 
-val FOUNDATION_BLOCK by lazy { md5("block_head_cat_litter") }
+val FOUNDATION_BLOCK by lazy { "block_head_cat_litter".hash() }
 
 class MainActivity : AppCompatActivity() {
     private val client by lazy { PushClient({ Log.d(TAG, it.contentToString()) }, { Log.d(TAG, it.name) }) }
@@ -38,4 +38,4 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-data class Block(val id: String, val prev: String, val data: String, val approved: Boolean)
+data class Block(val id: String, val prev: String, val data: String)
