@@ -97,7 +97,7 @@ class PushClient(
         }
         Thread {
             try {
-                channel.socket().connect(InetSocketAddress(host, port), 3000)
+                channel.socket().connect(InetSocketAddress(host, port), 5000)
                 maxBufferSize = ByteBuffer.allocate(8).let { byteBuffer ->
                     byteBuffer.putInt(5).put(4).limit(5).position(0)
                     channel.write(byteBuffer)
@@ -132,6 +132,7 @@ class PushClient(
                     receiver = receiveCallbacks.remove(ByteArrayKey(data)) ?: run { receiver(data);onReceive }
                 }
             } catch (e: Throwable) {
+                e.printStackTrace()
                 channel.close()
                 state = CLOSED
             }
