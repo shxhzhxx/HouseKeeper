@@ -23,17 +23,21 @@ data class Block(
 @Dao
 interface BlockDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(blocks: List<Block>)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(vararg blocks: Block)
+    fun insert(vararg blocks: Block)
 
     @Query("DELETE FROM block")
     suspend fun clear()
 
+    @Suppress("AndroidUnresolvedRoomSqlReference")
+    @Query("WITH RECURSIVE result(prev,data,hash) AS (SELECT prev,data,hash FROM block WHERE prev=:hash UNION SELECT block.prev,block.data,block.hash FROM block,result WHERE result.hash==block.prev) SELECT * FROM result")
+    fun subChain(hash: String):List<Block>
+
+    @Query("SELECT * FROM block WHERE hash=:hash")
+    fun get(hash: String):Block?
+
     @Query("SELECT * FROM block")
-    fun list(): LiveData<List<Block>>
+    fun observableList(): LiveData<List<Block>>
 
     @Query("SELECT hash FROM block WHERE hash NOT IN (SELECT prev from block)")
-    suspend fun head(): String?
+    fun head(): String?
 }

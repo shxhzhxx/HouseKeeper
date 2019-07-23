@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
 
         val viewModel = ViewModelProviders.of(this).get(BlockViewModel::class.java)
 
-        viewModel.list().observe(this, Observer { list ->
+        viewModel.observableList().observe(this, Observer { list ->
             adapter.list = list.reversed()
         })
 
