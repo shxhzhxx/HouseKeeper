@@ -19,33 +19,45 @@ class BlockRepository(private val dao: BlockDao) {
     }).apply { connect(HOST, PORT) }
 
     init {
-        dbThread.execute {
-            val head = head().toByteArray()
-            val byteArray = ByteArray(5 + head.size)
-            ByteBuffer.wrap(byteArray).put(1).putInt(head.size).put(head)
-            client.broadcast(byteArray)
-        }
+        dbThread.execute { requireSubChain(head()) }
     }
 
-    private fun handle(data: ByteArray) {
+    private fun handle(bytes: ByteArray) {
         dbThread.execute {
             try {
-                ByteBuffer.wrap(data).also { buffer ->
+                ByteBuffer.wrap(bytes).also { buffer ->
                     when (buffer.get().toInt()) {
-                        0 -> {//add
-//                            val prev = buffer.getString()
-                            val block = Block(buffer.getString(), buffer.getString())
-                            if (block.prev == head()) //检验合法性
-                                dao.insert(block)
-                        }
-                        1 -> {//next
-                            for (sub in dao.subChain(buffer.getString())) {
-                                client.broadcast(blockByteArray(sub.prev, sub.data))
+                        0 -> {
+                            //add
+                            fun insertAll(head: String, size: Int) {
+                                var currentHead = head
+                                repeat(size) {
+                                    dao.insert(Block(currentHead, buffer.getString()).also { currentHead = it.hash })
+                                }
+                            }
+
+                            val head = buffer.getString()
+                            if (head == head()) {
+                                insertAll(head, buffer.int)
+                            } else {
+                                val sub = dao.subChain(head)
+                                if (sub.isEmpty()) {
+                                    requireSubChain(head)
+                                } else {
+                                    val size = buffer.int
+                                    if (sub.size <= size) {
+                                        dao.delete(*sub.toTypedArray())
+                                        insertAll(head, size)
+                                    } else {
+                                        client.broadcast(blockByteArray(head, *sub.map { it.data }.toTypedArray()))
+                                    }
+                                }
                             }
                         }
-                        2 -> {//info
-                            dao.get(buffer.getString())
-                                ?.also { info -> client.broadcast(blockByteArray(info.prev, info.data)) }
+                        1 -> {//sub chain after head
+                            val head = buffer.getString()
+                            val data = dao.subChain(head).map { it.data }.toTypedArray()
+                            if (data.isNotEmpty()) client.broadcast(blockByteArray(head, *data))
                         }
                     }
                 }
@@ -68,14 +80,24 @@ class BlockRepository(private val dao: BlockDao) {
         client.close()
     }
 
+    private fun requireSubChain(head: String) {
+        val headBytes = head.toByteArray()
+        val byteArray = ByteArray(5 + headBytes.size)
+        ByteBuffer.wrap(byteArray).put(1).putInt(headBytes.size).put(headBytes)
+        client.broadcast(byteArray)
+    }
 
     private fun head() = dao.head() ?: foundationBlockHash
 
-    private fun blockByteArray(prev: String, data: String): ByteArray {
-        val prevArr = prev.toByteArray()
-        val dataArr = data.toByteArray()
-        val byteArray = ByteArray(prevArr.size + dataArr.size + 9)
-        ByteBuffer.wrap(byteArray).put(0).putInt(prevArr.size).put(prevArr).putInt(dataArr.size).put(dataArr)
+    private fun blockByteArray(head: String, vararg data: String): ByteArray {
+        val headBytes = head.toByteArray()
+        val dataBytesList = data.map { it.toByteArray() }
+        val byteArray = ByteArray(headBytes.size + dataBytesList.sumBy { it.size + 4 } + 9)
+        ByteBuffer.wrap(byteArray).put(0).putInt(headBytes.size).put(headBytes).putInt(dataBytesList.size).apply {
+            for (dataBytes in dataBytesList) {
+                putInt(dataBytes.size).put(dataBytes)
+            }
+        }
         return byteArray
     }
 }

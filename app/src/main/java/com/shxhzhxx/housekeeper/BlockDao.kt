@@ -25,15 +25,18 @@ interface BlockDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(vararg blocks: Block)
 
+    @Delete
+    fun delete(vararg blocks: Block)
+
     @Query("DELETE FROM block")
     suspend fun clear()
 
     @Suppress("AndroidUnresolvedRoomSqlReference")
     @Query("WITH RECURSIVE result(prev,data,hash) AS (SELECT prev,data,hash FROM block WHERE prev=:hash UNION SELECT block.prev,block.data,block.hash FROM block,result WHERE result.hash==block.prev) SELECT * FROM result")
-    fun subChain(hash: String):List<Block>
+    fun subChain(hash: String): List<Block>
 
     @Query("SELECT * FROM block WHERE hash=:hash")
-    fun get(hash: String):Block?
+    fun get(hash: String): Block?
 
     @Query("SELECT * FROM block")
     fun observableList(): LiveData<List<Block>>
