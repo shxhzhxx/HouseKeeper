@@ -17,7 +17,7 @@ fun String.hash() = BigInteger(1, md.digest(toByteArray())).toString(16).padStar
 data class Block(
     val prev: String,
     val data: String,
-    @PrimaryKey val hash: String = "${prev.hash()}data".hash()
+    @PrimaryKey val hash: String = "${prev.hash()}$data".hash()
 )
 
 @Dao
@@ -32,15 +32,16 @@ interface BlockDao {
     suspend fun clear()
 
     @Suppress("AndroidUnresolvedRoomSqlReference")
-    @Query("WITH RECURSIVE result(prev,data,hash) AS (SELECT prev,data,hash FROM block WHERE prev=:hash UNION SELECT block.prev,block.data,block.hash FROM block,result WHERE result.hash==block.prev) SELECT * FROM result")
+    @Query("WITH RECURSIVE result(prev,data,hash) AS (SELECT prev,data,hash FROM block WHERE prev=:hash UNION ALL SELECT block.prev,block.data,block.hash FROM block,result WHERE result.hash==block.prev) SELECT * FROM result")
     fun subChain(hash: String): List<Block>
 
-    @Query("SELECT * FROM block WHERE hash=:hash")
-    fun get(hash: String): Block?
-
     @Query("SELECT * FROM block")
-    fun observableList(): LiveData<List<Block>>
+    fun list(): LiveData<List<Block>>
 
     @Query("SELECT hash FROM block WHERE hash NOT IN (SELECT prev from block)")
     fun head(): String?
+
+    @Suppress("AndroidUnresolvedRoomSqlReference")
+    @Query("WITH RECURSIVE result(hash,n) AS (VALUES(:hash,0) UNION SELECT prev,result.n+1 FROM block,result WHERE result.hash==block.hash LIMIT :offset+1) SELECT hash FROM result WHERE n=:offset")
+    fun headOffset(hash: String, offset: Int): String?
 }

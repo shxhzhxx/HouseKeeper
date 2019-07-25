@@ -12,7 +12,7 @@ class BlockViewModel(application: Application) : AndroidViewModel(application) {
         repository.newBlock(data)
     }
 
-    fun observableList() = repository.observableList()
+    fun list() = repository.list()
 
     override fun onCleared() {
         super.onCleared()

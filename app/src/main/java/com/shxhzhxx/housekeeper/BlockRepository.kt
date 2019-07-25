@@ -22,6 +22,8 @@ class BlockRepository(private val dao: BlockDao) {
         dbThread.execute { requireSubChain(head()) }
     }
 
+    private var offset = 1
+
     private fun handle(bytes: ByteArray) {
         dbThread.execute {
             try {
@@ -32,20 +34,24 @@ class BlockRepository(private val dao: BlockDao) {
                             fun insertAll(head: String, size: Int) {
                                 var currentHead = head
                                 repeat(size) {
-                                    dao.insert(Block(currentHead, buffer.getString()).also { currentHead = it.hash })
+                                    dao.insert(Block(currentHead, buffer.getString()).also { currentHead = it.hash;println("insert $it") })
                                 }
                             }
 
                             val head = buffer.getString()
                             if (head == head()) {
+                                offset = 1
                                 insertAll(head, buffer.int)
                             } else {
                                 val sub = dao.subChain(head)
                                 if (sub.isEmpty()) {
-                                    requireSubChain(head)
+                                    offset *= 2
+                                    requireSubChain(head, offset)
                                 } else {
+                                    offset = 1
                                     val size = buffer.int
                                     if (sub.size <= size) {
+                                        println("delete $sub")
                                         dao.delete(*sub.toTypedArray())
                                         insertAll(head, size)
                                     } else {
@@ -55,9 +61,13 @@ class BlockRepository(private val dao: BlockDao) {
                             }
                         }
                         1 -> {//sub chain after head
-                            val head = buffer.getString()
+                            val head = dao.headOffset(buffer.getString(), buffer.int) ?: foundationBlockHash
                             val data = dao.subChain(head).map { it.data }.toTypedArray()
-                            if (data.isNotEmpty()) client.broadcast(blockByteArray(head, *data))
+                            if (data.isNotEmpty())
+                                client.broadcast(blockByteArray(head, *data))
+                            else {
+                                head().let { if (head != it) requireSubChain(it) }
+                            }
                         }
                     }
                 }
@@ -73,23 +83,25 @@ class BlockRepository(private val dao: BlockDao) {
         }
     }
 
-    fun observableList() = dao.observableList()
+    fun list() = dao.list()
 
     fun close() {
         dbThread.shutdown()
         client.close()
     }
 
-    private fun requireSubChain(head: String) {
+    private fun requireSubChain(head: String, offset: Int = 0) {
+        println("requireSubChain head:$head   offset:$offset")
         val headBytes = head.toByteArray()
-        val byteArray = ByteArray(5 + headBytes.size)
-        ByteBuffer.wrap(byteArray).put(1).putInt(headBytes.size).put(headBytes)
+        val byteArray = ByteArray(9 + headBytes.size)
+        ByteBuffer.wrap(byteArray).put(1).putInt(headBytes.size).put(headBytes).putInt(offset)
         client.broadcast(byteArray)
     }
 
     private fun head() = dao.head() ?: foundationBlockHash
 
     private fun blockByteArray(head: String, vararg data: String): ByteArray {
+        println("blockByteArray head:$head   data:${data.toList()}")
         val headBytes = head.toByteArray()
         val dataBytesList = data.map { it.toByteArray() }
         val byteArray = ByteArray(headBytes.size + dataBytesList.sumBy { it.size + 4 } + 9)
