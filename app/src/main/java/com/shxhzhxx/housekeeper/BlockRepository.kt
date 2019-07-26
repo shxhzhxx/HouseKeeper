@@ -34,7 +34,9 @@ class BlockRepository(private val dao: BlockDao) {
                             fun insertAll(head: String, size: Int) {
                                 var currentHead = head
                                 repeat(size) {
-                                    dao.insert(Block(currentHead, buffer.getString()).also { currentHead = it.hash;println("insert $it") })
+                                    dao.insert(Block(currentHead, buffer.getString()).also {
+                                        currentHead = it.hash;println("insert $it")
+                                    })
                                 }
                             }
 
@@ -61,12 +63,17 @@ class BlockRepository(private val dao: BlockDao) {
                             }
                         }
                         1 -> {//sub chain after head
-                            val head = dao.headOffset(buffer.getString(), buffer.int) ?: foundationBlockHash
-                            val data = dao.subChain(head).map { it.data }.toTypedArray()
-                            if (data.isNotEmpty())
-                                client.broadcast(blockByteArray(head, *data))
-                            else {
-                                head().let { if (head != it) requireSubChain(it) }
+                            val head = buffer.getString()
+                            val headOffset = if (head == foundationBlockHash) foundationBlockHash else
+                                dao.headOffset(head, buffer.int)
+                            if (headOffset == null) {
+                                offset *= 2
+                                requireSubChain(head, offset)
+                            } else {
+                                offset = 1
+                                val data = dao.subChain(headOffset).map { it.data }.toTypedArray()
+                                if (data.isNotEmpty())
+                                    client.broadcast(blockByteArray(headOffset, *data))
                             }
                         }
                     }
@@ -79,7 +86,9 @@ class BlockRepository(private val dao: BlockDao) {
 
     fun newBlock(data: String) {
         dbThread.execute {
-            client.broadcast(blockByteArray(head(), data))
+            val head = head()
+            dao.insert(Block(head, data))
+            client.broadcast(blockByteArray(head, data))
         }
     }
 

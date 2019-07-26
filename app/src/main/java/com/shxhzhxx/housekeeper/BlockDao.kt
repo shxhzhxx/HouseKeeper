@@ -42,6 +42,6 @@ interface BlockDao {
     fun head(): String?
 
     @Suppress("AndroidUnresolvedRoomSqlReference")
-    @Query("WITH RECURSIVE result(hash,n) AS (VALUES(:hash,0) UNION SELECT prev,result.n+1 FROM block,result WHERE result.hash==block.hash LIMIT :offset+1) SELECT hash FROM result WHERE n=:offset")
+    @Query("WITH RECURSIVE result(hash,n) AS (SELECT hash,0 FROM block WHERE hash=:hash UNION SELECT prev,result.n+1 FROM block,result WHERE result.hash==block.hash LIMIT :offset+1) SELECT hash FROM result ORDER BY n DESC")
     fun headOffset(hash: String, offset: Int): String?
 }
