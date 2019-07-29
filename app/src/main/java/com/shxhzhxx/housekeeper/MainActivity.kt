@@ -29,7 +29,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or (View.SYSTEM_UI_FLAG_VISIBLE)
         setContentView(R.layout.activity_main)
 
-        val adapter = BlockAdapter()
+        val adapter =  BlockAdapter()
         blocks.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
         blocks.adapter = adapter
         blocks.addOnLayoutChangeListener { v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
