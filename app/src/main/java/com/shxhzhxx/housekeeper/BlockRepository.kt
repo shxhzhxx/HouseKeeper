@@ -52,12 +52,14 @@ class BlockRepository(private val dao: BlockDao) {
                                 } else {
                                     offset = 1
                                     val size = buffer.int
-                                    if (sub.size <= size) {
+                                    if (sub.size < size) {
                                         println("delete $sub")
                                         dao.delete(*sub.toTypedArray())
                                         insertAll(head, size)
-                                    } else {
+                                    } else if (sub.size > size) {
                                         client.broadcast(blockByteArray(head, *sub.map { it.data }.toTypedArray()))
+                                    } else {
+                                        //found a disagreement
                                     }
                                 }
                             }
